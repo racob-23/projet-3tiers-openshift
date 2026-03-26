@@ -7,7 +7,7 @@ metadata:
     role: webserver
     zone: dmz
 spec:
-  runStrategy: Always
+  runStrategy: Manual
   instancetype:
     kind: VirtualMachineClusterInstancetype
     name: u1.micro
