@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firewall-policy
+  namespace: racobniasse-dev
+spec:
+  podSelector:
+    matchLabels:
+      role: firewall
+  ingress:
+  - {}
+  egress:
+  - {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dmz-policy
+  namespace: racobniasse-dev
+spec:
+  podSelector:
+    matchLabels:
+      zone: dmz
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          role: firewall
+  - ports:
+    - port: 80
+    - port: 443
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          zone: lan
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lan-policy
+  namespace: racobniasse-dev
+spec:
+  podSelector:
+    matchLabels:
+      zone: lan
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          zone: dmz
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          zone: dmz
+  - ports:
+    - port: 53
+    - port: 80
+    - port: 443
