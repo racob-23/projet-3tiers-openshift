@@ -10,7 +10,7 @@ spec:
   runStrategy: Manual
   instancetype:
     kind: VirtualMachineClusterInstancetype
-    name: u1.micro
+    name: u1.small
   template:
     metadata:
       labels:
@@ -29,76 +29,42 @@ spec:
       volumes:
       - name: containerdisk
         containerDisk:
-          image: quay.io/containerdisks/fedora:latest
+          image: quay.io/containerdisks/centos-stream:9
       - name: cloudinitdisk
         cloudInitNoCloud:
           userData: |
             #cloud-config
-            user: fedora
-            password: fedora123
+            user: centos
+            password: centos123
             chpasswd: {expire: False}
-            packages:
-              - nginx
-              - nodejs
-              - npm
-            write_files:
-              - path: /home/fedora/app/index.js
-                owner: fedora:fedora
-                permissions: '0755'
-                content: |
-                  const http = require('http');
-                  const server = http.createServer((req, res) => {
-                    res.writeHead(200, {'Content-Type': 'text/html'});
-                    res.end('<h1>Projet 3-tiers</h1><p>VM2 Web Server - Node.js</p>');
-                  });
-                  server.listen(3000, () => console.log('App running on port 3000'));
-              - path: /etc/systemd/system/nodeapp.service
-                permissions: '0644'
-                content: |
-                  [Unit]
-                  Description=Application Node.js Projet 3-tiers
-                  After=network.target
-                  [Service]
-                  Type=simple
-                  User=fedora
-                  WorkingDirectory=/home/fedora/app
-                  ExecStart=/usr/bin/node /home/fedora/app/index.js
-                  Restart=always
-                  RestartSec=3
-                  [Install]
-                  WantedBy=multi-user.target
-              - path: /etc/nginx/nginx.conf
-                permissions: '0644'
-                content: |
-                  user nginx;
-                  worker_processes auto;
-                  error_log /var/log/nginx/error.log notice;
-                  pid /run/nginx.pid;
-                  events {
-                      worker_connections 1024;
-                  }
-                  http {
-                      include /etc/nginx/mime.types;
-                      default_type application/octet-stream;
-                      sendfile on;
-                      keepalive_timeout 65;
-                      types_hash_max_size 4096;
-                      server {
-                          listen 80 default_server;
-                          server_name _;
-                          location / {
-                              proxy_pass http://127.0.0.1:3000;
-                              proxy_set_header Host $host;
-                              proxy_set_header X-Real-IP $remote_addr;
-                          }
-                      }
-                  }
             runcmd:
-              - mkdir -p /home/fedora/app
-              - chown fedora:fedora /home/fedora/app
-              - setsebool -P httpd_can_network_connect 1
+              - mkdir -p /home/centos/app
+              - chmod 777 /home/centos/app
+              - |
+                cat > /home/centos/app/server.py << 'PYEOF'
+                from http.server import HTTPServer, BaseHTTPRequestHandler
+                class H(BaseHTTPRequestHandler):
+                    def do_GET(self):
+                        self.send_response(200)
+                        self.send_header('Content-type','text/html')
+                        self.end_headers()
+                        self.wfile.write(b'<h1>Projet 3-tiers</h1><p>VM2 Web Server</p>')
+                    def log_message(self,f,*a):pass
+                HTTPServer(('',80),H).serve_forever()
+                PYEOF
+              - |
+                cat > /etc/systemd/system/webserver.service << 'SEOF'
+                [Unit]
+                Description=Serveur Web Projet 3-tiers
+                After=network.target
+                [Service]
+                Type=simple
+                ExecStart=/usr/bin/python3 /home/centos/app/server.py
+                Restart=always
+                RestartSec=3
+                [Install]
+                WantedBy=multi-user.target
+                SEOF
               - systemctl daemon-reload
-              - systemctl enable nodeapp
-              - systemctl enable nginx
-              - systemctl start nodeapp
-              - systemctl start nginx
+              - systemctl enable webserver
+              - systemctl start webserver
